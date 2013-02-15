@@ -1,0 +1,19 @@
+__author__ = 'mariosky'
+
+
+import onemax
+import cloud, time
+
+num_jobs = 2
+start = time.time()
+
+
+print "iniciando.."
+id = cloud.call(onemax.initialize,300 ,_type='s1', _env="deap")
+print "Evol."
+jids = cloud.map(onemax.work, [5,5,5,5,5,5,5,5,5,5] , _type='s1', _env="deap")
+print time.time()-start
+
+results_list = cloud.result(jids)
+print time.time()-start
+print results_list
