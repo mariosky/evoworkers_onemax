@@ -9,13 +9,21 @@ import jsonrpclib
 creator.create("FitnessMax", base.Fitness, weights=(1.0,))
 creator.create("Individual", list, fitness=creator.FitnessMax)
 
-CHROMOSOME_LENGTH = 100
-IND_PB    = 0.05
-TOURNAMENT_SIZE = 3
-SAMPLE_SIZE = 60
-POPULATION_SIZE = 400
 
-SERVER = "http://evening-beyond-6989.herokuapp.com/evospace"
+SERVER = "http://murmuring-mesa-7774.herokuapp.com/evospace"
+CHROMOSOME_LENGTH = 128
+SAMPLE_SIZE = 50
+POPULATION_SIZE = 300
+WORKER_GENERATIONS = 180
+
+MUTATION_FLIP_PB    = 0.05
+TOURNAMENT_SIZE = 2
+CXPB = 0.5
+MUTPB = 0.2
+
+
+
+
 #SERVER = "http://localhost:5000/evospace"
 
 def getToolBox():
@@ -28,7 +36,7 @@ def getToolBox():
     # Operator registering
     toolbox.register("evaluate", evalOneMax)
     toolbox.register("mate", tools.cxTwoPoints)
-    toolbox.register("mutate", tools.mutFlipBit, indpb = IND_PB)
+    toolbox.register("mutate", tools.mutFlipBit, indpb = MUTATION_FLIP_PB)
     toolbox.register("select", tools.selTournament, tournsize=TOURNAMENT_SIZE)
     return toolbox
 
@@ -36,7 +44,7 @@ def getToolBox():
 
 
 
-def initialize(n):
+def initialize():
     pop = getToolBox().population(n=POPULATION_SIZE)
     server = jsonrpclib.Server(SERVER)
     server.initialize(None)
@@ -50,30 +58,28 @@ def evalOneMax(individual):
     return sum(individual),
 
 
-def evolve(i, CXPB = 0.5, MUTPB = 0.2, NGEN = 90  ):
+def evolve(sample_num):
+    #random.seed(64)
+
     toolbox = getToolBox()
-    random.seed(64)
+    start = time.time()
+
     server = jsonrpclib.Server(SERVER)
     evospace_sample = server.getSample(SAMPLE_SIZE)
     pop = [ creator.Individual( cs['chromosome']) for cs in evospace_sample['sample']]
 
-    out = []
-
-
-    out.append( "Start of evolution %i" % i)
-
+    begin =   time.time()
     # Evaluate the entire population
     fitnesses = map(toolbox.evaluate, pop)
     for ind, fit in zip(pop, fitnesses):
         ind.fitness.values = fit
 
-    out.append( "  Evaluated %i individuals" % len(pop))
 
+    total_evals = len(pop)
+    best_first   = None
     # Begin the evolution
 
-    for g in range(NGEN):
-        #print "-- Generation %i --" % g,
-
+    for g in range(WORKER_GENERATIONS):
         # Select the next generation individuals
         offspring = toolbox.select(pop, len(pop))
         # Clone the selected individuals
@@ -97,6 +103,7 @@ def evolve(i, CXPB = 0.5, MUTPB = 0.2, NGEN = 90  ):
         for ind, fit in zip(invalid_ind, fitnesses):
             ind.fitness.values = fit
 
+        total_evals+=len(invalid_ind)
         #print "  Evaluated %i individuals" % len(invalid_ind),
 
         # The population is entirely replaced by the offspring
@@ -105,32 +112,49 @@ def evolve(i, CXPB = 0.5, MUTPB = 0.2, NGEN = 90  ):
         # Gather all the fitnesses in one list and print the stats
         fits = [ind.fitness.values[0] for ind in pop]
 
-        length = len(pop)
-        mean = sum(fits) / length
-        sum2 = sum(x*x for x in fits)
-        std = abs(sum2 / length - mean**2)**0.5
+        #length = len(pop)
+        #mean = sum(fits) / length
+        #sum2 = sum(x*x for x in fits)
+        #std = abs(sum2 / length - mean**2)**0.5
 
-        out.append( "  Min %s" % min(fits) + "  Max %s" % max(fits)+ "  Avg %s" % mean + "  Std %s" % std)
+        best = max(fits)
+        if not best_first:
+            best_first = best
+
+        if best >= CHROMOSOME_LENGTH:
+            break
+
+        #print  "  Min %s" % min(fits) + "  Max %s" % max(fits)+ "  Avg %s" % mean + "  Std %s" % std
 
     #print "-- End of (successful) evolution --"
+
+    putback =  time.time()
 
     sample = [ {"chromosome":ind[:],"id":None,
             "fitness":{"DefaultContext":ind.fitness.values[0]} }
                                                             for ind in pop]
     evospace_sample['sample'] = sample
     server.putSample(evospace_sample)
+    #best_ind = tools.selBest(pop, 1)[0]
 
-
-    best_ind = tools.selBest(pop, 1)[0]
-    print "Best individual is %s, %s" % ( best_ind.fitness.values, best_ind)
-
-    return [best_ind.fitness.values[0] == CHROMOSOME_LENGTH, best_ind.fitness.values[0],best_ind ,out]
+    return best >= CHROMOSOME_LENGTH , [best, sample_num, round(time.time() - start, 2),
+                                        round(begin - start, 2), round(putback - begin, 2),
+                                        round(time.time() - putback, 2), total_evals, best_first]
 
 
 def work(max_samples):
+    server = jsonrpclib.Server(SERVER)
     results = []
-    for i in range(max_samples):
-        evolve(i)
+    for sample_num in range(max_samples):
+        if int(server.found(None)):
+            break
+        else:
+            gen_data = evolve(sample_num)
+            if gen_data[0]:
+                server.found_it(None)
+            results.append(gen_data[1])
+    return results
+
 
 
 if __name__ == "__main__":
@@ -138,11 +162,11 @@ if __name__ == "__main__":
 
     print "iniciando.."
     start = time.time()
-    #initialize(300)
+    initialize()
     print "Evol."
-    print time.time()-start
-    work(20)
-    print time.time()-start
+    r = work(20)
+    for l in r:
+        print l
 
 #    for i in range(100):
 #        print i

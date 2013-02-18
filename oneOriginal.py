@@ -19,6 +19,9 @@ from deap import base
 from deap import creator
 from deap import tools
 
+
+
+
 creator.create("FitnessMax", base.Fitness, weights=(1.0,))
 creator.create("Individual", list, fitness=creator.FitnessMax)
 
@@ -27,7 +30,7 @@ toolbox = base.Toolbox()
 toolbox.register("attr_bool", random.randint, 0, 1)
 # Structure initializers
 toolbox.register("individual", tools.initRepeat, creator.Individual,
-    toolbox.attr_bool, 256)
+    toolbox.attr_bool, 128)
 toolbox.register("population", tools.initRepeat, list, toolbox.individual)
 
 def evalOneMax(individual):
@@ -37,7 +40,7 @@ def evalOneMax(individual):
 toolbox.register("evaluate", evalOneMax)
 toolbox.register("mate", tools.cxTwoPoints)
 toolbox.register("mutate", tools.mutFlipBit, indpb=0.05)
-toolbox.register("select", tools.selTournament, tournsize=3)
+toolbox.register("select", tools.selTournament, tournsize=2)
 
 def main():
     #random.seed(64)
@@ -89,17 +92,17 @@ def main():
         # Gather all the fitnesses in one list and print the stats
         fits = [ind.fitness.values[0] for ind in pop]
 
-        length = len(pop)
-        mean = sum(fits) / length
-        sum2 = sum(x*x for x in fits)
-        std = abs(sum2 / length - mean**2)**0.5
+        #length = len(pop)
+        #mean = sum(fits) / length
+        #sum2 = sum(x*x for x in fits)
+        #std = abs(sum2 / length - mean**2)**0.5
 
-        print "  Min %s" % min(fits)
-        print "  Max %s" % max(fits)
-        print "  Avg %s" % mean
-        print "  Std %s" % std
+        #print "  Min %s" % min(fits)
+        #print "  Max %s" % max(fits)
+        #print "  Avg %s" % mean
+        #print "  Std %s" % std
 
-        if max(fits) == 256:
+        if max(fits) == 128:
             exit()
     print "-- End of (successful) evolution --"
 
