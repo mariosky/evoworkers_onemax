@@ -30,7 +30,7 @@ toolbox = base.Toolbox()
 toolbox.register("attr_bool", random.randint, 0, 1)
 # Structure initializers
 toolbox.register("individual", tools.initRepeat, creator.Individual,
-    toolbox.attr_bool, 128)
+    toolbox.attr_bool, 256)
 toolbox.register("population", tools.initRepeat, list, toolbox.individual)
 
 def evalOneMax(individual):
@@ -102,7 +102,7 @@ def main():
         #print "  Avg %s" % mean
         #print "  Std %s" % std
 
-        if max(fits) == 128:
+        if max(fits) == 256:
             exit()
     print "-- End of (successful) evolution --"
 

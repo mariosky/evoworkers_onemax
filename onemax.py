@@ -11,10 +11,11 @@ creator.create("Individual", list, fitness=creator.FitnessMax)
 
 
 SERVER = "http://murmuring-mesa-7774.herokuapp.com/evospace"
-CHROMOSOME_LENGTH = 128
-SAMPLE_SIZE = 50
-POPULATION_SIZE = 300
-WORKER_GENERATIONS = 180
+CHROMOSOME_LENGTH = 512
+SAMPLE_SIZE = 40
+POPULATION_SIZE = 500
+WORKER_GENERATIONS = 120
+MAX_SAMPLES = 10
 
 MUTATION_FLIP_PB    = 0.05
 TOURNAMENT_SIZE = 2
@@ -48,10 +49,19 @@ def initialize():
     pop = getToolBox().population(n=POPULATION_SIZE)
     server = jsonrpclib.Server(SERVER)
     server.initialize(None)
-    for cs in pop:
-        chrome = cs[:]
-        individual = {'id':None,'fitness':{"DefaultContext":0.0 },'chromosome':chrome}
-        server.putIndividual(individual)
+    #for cs in pop:
+    #    chrome = cs[:]
+    #    individual = {'id':None,'fitness':{"DefaultContext":0.0 },'chromosome':chrome}
+    #    server.putIndividual(individual)
+
+    sample = [ {"chromosome":ind[:],"id":None,
+                "fitness":{"DefaultContext":0.0} }
+               for ind in pop]
+
+    init_pop =  {'sample_id': 'None' ,
+                 'sample':   sample}
+
+    server.putSample(init_pop)
 
 
 def evalOneMax(individual):
@@ -135,24 +145,24 @@ def evolve(sample_num):
                                                             for ind in pop]
     evospace_sample['sample'] = sample
     server.putSample(evospace_sample)
-    #best_ind = tools.selBest(pop, 1)[0]
+    best_ind = tools.selBest(pop, 1)[0]
 
-    return best >= CHROMOSOME_LENGTH , [best, sample_num, round(time.time() - start, 2),
+    return best >= CHROMOSOME_LENGTH , [CHROMOSOME_LENGTH,best, sample_num, round(time.time() - start, 2),
                                         round(begin - start, 2), round(putback - begin, 2),
-                                        round(time.time() - putback, 2), total_evals, best_first]
+                                        round(time.time() - putback, 2), total_evals, best_first, best_ind]
 
 
-def work(max_samples):
+def work(worker_id):
     server = jsonrpclib.Server(SERVER)
     results = []
-    for sample_num in range(max_samples):
+    for sample_num in range(MAX_SAMPLES):
         if int(server.found(None)):
             break
         else:
             gen_data = evolve(sample_num)
             if gen_data[0]:
                 server.found_it(None)
-            results.append(gen_data[1])
+            results.append([worker_id] + gen_data[1])
     return results
 
 
