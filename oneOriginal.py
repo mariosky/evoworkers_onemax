@@ -30,7 +30,7 @@ toolbox = base.Toolbox()
 toolbox.register("attr_bool", random.randint, 0, 1)
 # Structure initializers
 toolbox.register("individual", tools.initRepeat, creator.Individual,
-    toolbox.attr_bool, 256)
+    toolbox.attr_bool, 512)
 toolbox.register("population", tools.initRepeat, list, toolbox.individual)
 
 def evalOneMax(individual):
@@ -45,7 +45,7 @@ toolbox.register("select", tools.selTournament, tournsize=2)
 def main():
     #random.seed(64)
 
-    pop = toolbox.population(n=400)
+    pop = toolbox.population(n=500)
     CXPB, MUTPB, NGEN = 0.5, 0.2, 1000
 
     print "Start of evolution"
@@ -102,7 +102,7 @@ def main():
         #print "  Avg %s" % mean
         #print "  Std %s" % std
 
-        if max(fits) == 256:
+        if max(fits) == 512:
             exit()
     print "-- End of (successful) evolution --"
 

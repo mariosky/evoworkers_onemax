@@ -10,56 +10,29 @@ creator.create("FitnessMax", base.Fitness, weights=(1.0,))
 creator.create("Individual", list, fitness=creator.FitnessMax)
 
 
-SERVER = "http://murmuring-mesa-7774.herokuapp.com/evospace"
-CHROMOSOME_LENGTH = 512
-SAMPLE_SIZE = 40
-POPULATION_SIZE = 500
-WORKER_GENERATIONS = 120
-MAX_SAMPLES = 10
-
-MUTATION_FLIP_PB    = 0.05
-TOURNAMENT_SIZE = 2
-CXPB = 0.5
-MUTPB = 0.2
-
-
-
-
-#SERVER = "http://localhost:5000/evospace"
-
-def getToolBox():
+def getToolBox(config):
     toolbox = base.Toolbox()
     # Attribute generator
     toolbox.register("attr_bool", random.randint, 0, 1)
     # Structure initializers
-    toolbox.register("individual", tools.initRepeat, creator.Individual, toolbox.attr_bool, CHROMOSOME_LENGTH)
+    toolbox.register("individual", tools.initRepeat, creator.Individual, toolbox.attr_bool,config["CHROMOSOME_LENGTH"])
     toolbox.register("population", tools.initRepeat, list, toolbox.individual)
     # Operator registering
     toolbox.register("evaluate", evalOneMax)
     toolbox.register("mate", tools.cxTwoPoints)
-    toolbox.register("mutate", tools.mutFlipBit, indpb = MUTATION_FLIP_PB)
-    toolbox.register("select", tools.selTournament, tournsize=TOURNAMENT_SIZE)
+    toolbox.register("mutate", tools.mutFlipBit, indpb = config["MUTATION_FLIP_PB"])
+    toolbox.register("select", tools.selTournament, tournsize=config["TOURNAMENT_SIZE"])
     return toolbox
 
 
-
-
-
-def initialize():
-    pop = getToolBox().population(n=POPULATION_SIZE)
-    server = jsonrpclib.Server(SERVER)
+def initialize(config):
+    pop = getToolBox(config).population(n=config["POPULATION_SIZE"])
+    print pop
+    server = jsonrpclib.Server(config["SERVER"])
     server.initialize(None)
-    #for cs in pop:
-    #    chrome = cs[:]
-    #    individual = {'id':None,'fitness':{"DefaultContext":0.0 },'chromosome':chrome}
-    #    server.putIndividual(individual)
 
-    sample = [ {"chromosome":ind[:],"id":None,
-                "fitness":{"DefaultContext":0.0} }
-               for ind in pop]
-
-    init_pop =  {'sample_id': 'None' ,
-                 'sample':   sample}
+    sample = [{"chromosome":ind[:], "id":None, "fitness":{"DefaultContext":0.0}} for ind in pop]
+    init_pop = {'sample_id': 'None' , 'sample':   sample}
 
     server.putSample(init_pop)
 
@@ -68,14 +41,14 @@ def evalOneMax(individual):
     return sum(individual),
 
 
-def evolve(sample_num):
+def evolve(sample_num, config):
     #random.seed(64)
 
-    toolbox = getToolBox()
+    toolbox = getToolBox(config)
     start = time.time()
 
-    server = jsonrpclib.Server(SERVER)
-    evospace_sample = server.getSample(SAMPLE_SIZE)
+    server = jsonrpclib.Server(config["SERVER"])
+    evospace_sample = server.getSample(config["SAMPLE_SIZE"])
     pop = [ creator.Individual( cs['chromosome']) for cs in evospace_sample['sample']]
 
     begin =   time.time()
@@ -89,7 +62,7 @@ def evolve(sample_num):
     best_first   = None
     # Begin the evolution
 
-    for g in range(WORKER_GENERATIONS):
+    for g in range(config["WORKER_GENERATIONS"]):
         # Select the next generation individuals
         offspring = toolbox.select(pop, len(pop))
         # Clone the selected individuals
@@ -97,13 +70,13 @@ def evolve(sample_num):
 
         # Apply crossover and mutation on the offspring
         for child1, child2 in zip(offspring[::2], offspring[1::2]):
-            if random.random() < CXPB:
+            if random.random() < config["CXPB"]:
                 toolbox.mate(child1, child2)
                 del child1.fitness.values
                 del child2.fitness.values
 
         for mutant in offspring:
-            if random.random() < MUTPB:
+            if random.random() < config["MUTPB"]:
                 toolbox.mutate(mutant)
                 del mutant.fitness.values
 
@@ -131,7 +104,7 @@ def evolve(sample_num):
         if not best_first:
             best_first = best
 
-        if best >= CHROMOSOME_LENGTH:
+        if best >= config["CHROMOSOME_LENGTH"]:
             break
 
         #print  "  Min %s" % min(fits) + "  Max %s" % max(fits)+ "  Avg %s" % mean + "  Std %s" % std
@@ -147,19 +120,21 @@ def evolve(sample_num):
     server.putSample(evospace_sample)
     best_ind = tools.selBest(pop, 1)[0]
 
-    return best >= CHROMOSOME_LENGTH , [CHROMOSOME_LENGTH,best, sample_num, round(time.time() - start, 2),
+    return best >= config["CHROMOSOME_LENGTH"] , [config["CHROMOSOME_LENGTH"],best, sample_num, round(time.time() - start, 2),
                                         round(begin - start, 2), round(putback - begin, 2),
                                         round(time.time() - putback, 2), total_evals, best_first, best_ind]
 
 
-def work(worker_id):
-    server = jsonrpclib.Server(SERVER)
+def work(params):
+    worker_id = params[0]
+    config = params[1]
+    server = jsonrpclib.Server(config["SERVER"])
     results = []
-    for sample_num in range(MAX_SAMPLES):
+    for sample_num in range(config["MAX_SAMPLES"]):
         if int(server.found(None)):
             break
         else:
-            gen_data = evolve(sample_num)
+            gen_data = evolve(sample_num, config)
             if gen_data[0]:
                 server.found_it(None)
             results.append([worker_id] + gen_data[1])
@@ -167,26 +142,4 @@ def work(worker_id):
 
 
 
-if __name__ == "__main__":
-    start = time.time()
 
-    print "iniciando.."
-    start = time.time()
-    initialize()
-    print "Evol."
-    r = work(20)
-    for l in r:
-        print l
-
-#    for i in range(100):
-#        print i
-#        if evolve(0):
-#            print "Global Minimum Reached"
-#            exit()
-
-#    num_jobs = 2
-#    jids = cloud.map(evolve, range(num_jobs) , _type='s1', _env="deap")
-#    results_list = cloud.result(jids)
-#    for r in results_list:
-#        print r
-#
